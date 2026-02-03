@@ -1,0 +1,445 @@
+name: 🚀 CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  PYTHON_VERSION: '3.11'
+  NODE_VERSION: '18'
+  DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
+  BACKEND_IMAGE: gig-router-backend
+  FRONTEND_IMAGE: gig-router-frontend
+
+jobs:
+  # ==========================================
+  # Stage 1: Code Quality & Security Analysis
+  # ==========================================
+  code-quality:
+    name: 📊 Code Quality & Linting
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for SonarQube
+
+      # Backend Linting
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: 📦 Install Python linting tools
+        run: |
+          pip install flake8 pylint
+
+      - name: 🔍 Run Flake8
+        working-directory: ./backend
+        run: |
+          flake8 . --count --max-line-length=127 --statistics --exclude=migrations,__pycache__,venv
+        continue-on-error: true
+
+      # Frontend Linting
+      - name: 📦 Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: 'frontend/package-lock.json'
+
+      - name: 📦 Install frontend dependencies
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: 🔍 Run ESLint (if available)
+        working-directory: ./frontend
+        run: |
+          if npm run | grep -q "lint"; then
+            npm run lint
+          else
+            echo "✅ No lint script found, skipping..."
+          fi
+        continue-on-error: true
+
+  # ==========================================
+  # Stage 2: SonarQube Analysis
+  # ==========================================
+  sonarqube:
+    name: 🔬 SonarQube Analysis
+    runs-on: ubuntu-latest
+    needs: code-quality
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Shallow clones should be disabled for better analysis
+
+      - name: 🔬 SonarQube Scan
+        uses: sonarsource/sonarqube-scan-action@master
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        continue-on-error: true  # Don't fail if SonarQube not configured yet
+
+      - name: 📊 SonarQube Quality Gate Check
+        uses: sonarsource/sonarqube-quality-gate-action@master
+        timeout-minutes: 5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        continue-on-error: true
+
+  # ==========================================
+  # Stage 3: Backend Testing
+  # ==========================================
+  backend-test:
+    name: 🧪 Backend Tests
+    runs-on: ubuntu-latest
+    needs: sonarqube
+    
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: test_db
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: testpass123
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: 'backend/requirements.txt'
+
+      - name: 📦 Install dependencies
+        working-directory: ./backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install coverage
+
+      - name: ⚙️ Run Django System Checks
+        working-directory: ./backend
+        env:
+          DATABASE_URL: postgresql://testuser:testpass123@localhost:5432/test_db
+          REDIS_URL: redis://localhost:6379/0
+          SECRET_KEY: test-secret-key-ci-pipeline
+          DEBUG: 'False'
+          ALLOWED_HOSTS: localhost,127.0.0.1
+        run: |
+          python manage.py check --deploy
+
+      - name: 🗄️ Run Migrations
+        working-directory: ./backend
+        env:
+          DATABASE_URL: postgresql://testuser:testpass123@localhost:5432/test_db
+          REDIS_URL: redis://localhost:6379/0
+          SECRET_KEY: test-secret-key-ci-pipeline
+          DEBUG: 'False'
+        run: |
+          python manage.py migrate --noinput
+
+      - name: 🧪 Run Tests with Coverage
+        working-directory: ./backend
+        env:
+          DATABASE_URL: postgresql://testuser:testpass123@localhost:5432/test_db
+          REDIS_URL: redis://localhost:6379/0
+          SECRET_KEY: test-secret-key-ci-pipeline
+          DEBUG: 'False'
+        run: |
+          coverage run --source='.' manage.py test
+          coverage report
+          coverage xml
+
+      - name: 📊 Upload Coverage Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: backend/coverage.xml
+          retention-days: 7
+
+  # ==========================================
+  # Stage 4: Frontend Testing
+  # ==========================================
+  frontend-test:
+    name: 🧪 Frontend Tests
+    runs-on: ubuntu-latest
+    needs: sonarqube
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 📦 Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: 'frontend/package-lock.json'
+
+      - name: 📦 Install dependencies
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: 🧪 Run Tests
+        working-directory: ./frontend
+        run: |
+          if npm run | grep -q "test"; then
+            CI=true npm test -- --coverage --watchAll=false --passWithNoTests
+          else
+            echo "⚠️ No test script found"
+          fi
+        continue-on-error: true
+
+      - name: 🏗️ Build Frontend
+        working-directory: ./frontend
+        run: npm run build
+
+      - name: 📊 Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build
+          path: frontend/build/
+          retention-days: 7
+
+  # ==========================================
+  # Stage 5: Dependency Security Check
+  # ==========================================
+  dependency-check:
+    name: 🔒 Dependency Security Scan
+    runs-on: ubuntu-latest
+    needs: [backend-test, frontend-test]
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔍 Run Trivy for Dependency Vulnerabilities
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+        continue-on-error: true
+
+      - name: 📊 Upload Trivy Results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+        continue-on-error: true
+
+  # ==========================================
+  # Stage 6: Build Docker Images
+  # ==========================================
+  docker-build:
+    name: 🐳 Build Docker Images
+    runs-on: ubuntu-latest
+    needs: [backend-test, frontend-test, dependency-check]
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔧 Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🏗️ Build Backend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: false
+          load: true
+          tags: |
+            ${{ env.DOCKER_HUB_USERNAME }}/${{ env.BACKEND_IMAGE }}:${{ github.sha }}
+            ${{ env.DOCKER_HUB_USERNAME }}/${{ env.BACKEND_IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: 🏗️ Build Frontend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: false
+          load: true
+          tags: |
+            ${{ env.DOCKER_HUB_USERNAME }}/${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
+            ${{ env.DOCKER_HUB_USERNAME }}/${{ env.FRONTEND_IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: 💾 Save Docker Images as Artifacts
+        run: |
+          docker save ${{ env.DOCKER_HUB_USERNAME }}/${{ env.BACKEND_IMAGE }}:${{ github.sha }} | gzip > backend-image.tar.gz
+          docker save ${{ env.DOCKER_HUB_USERNAME }}/${{ env.FRONTEND_IMAGE }}:${{ github.sha }} | gzip > frontend-image.tar.gz
+
+      - name: 📤 Upload Backend Image
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-docker-image
+          path: backend-image.tar.gz
+          retention-days: 1
+
+      - name: 📤 Upload Frontend Image
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-docker-image
+          path: frontend-image.tar.gz
+          retention-days: 1
+
+  # ==========================================
+  # Stage 7: Container Security Scanning
+  # ==========================================
+  container-security:
+    name: 🛡️ Container Security Scan (Trivy)
+    runs-on: ubuntu-latest
+    needs: docker-build
+    
+    steps:
+      - name: 📥 Download Backend Image
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-docker-image
+
+      - name: 📥 Download Frontend Image
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-docker-image
+
+      - name: 📦 Load Docker Images
+        run: |
+          docker load < backend-image.tar.gz
+          docker load < frontend-image.tar.gz
+
+      - name: 🔍 Run Trivy Scan - Backend
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.DOCKER_HUB_USERNAME }}/${{ env.BACKEND_IMAGE }}:${{ github.sha }}
+          format: 'table'
+          exit-code: '0'
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
+
+      - name: 🔍 Run Trivy Scan - Frontend
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.DOCKER_HUB_USERNAME }}/${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
+          format: 'table'
+          exit-code: '0'
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
+
+      - name: 🔍 Run Trivy Scan - Backend (SARIF)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.DOCKER_HUB_USERNAME }}/${{ env.BACKEND_IMAGE }}:${{ github.sha }}
+          format: 'sarif'
+          output: 'trivy-backend.sarif'
+          severity: 'CRITICAL,HIGH'
+        continue-on-error: true
+
+      - name: 📊 Upload Trivy Results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-backend.sarif'
+        continue-on-error: true
+
+  # ==========================================
+  # Stage 8: Push to Docker Hub (Only on main)
+  # ==========================================
+  docker-push:
+    name: 🚀 Push to Docker Hub
+    runs-on: ubuntu-latest
+    needs: container-security
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: 📥 Download Backend Image
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-docker-image
+
+      - name: 📥 Download Frontend Image
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-docker-image
+
+      - name: 📦 Load Docker Images
+        run: |
+          docker load < backend-image.tar.gz
+          docker load < frontend-image.tar.gz
+
+      - name: 🔑 Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+
+      - name: 🚀 Push Backend Image
+        run: |
+          docker push ${{ env.DOCKER_HUB_USERNAME }}/${{ env.BACKEND_IMAGE }}:${{ github.sha }}
+          docker push ${{ env.DOCKER_HUB_USERNAME }}/${{ env.BACKEND_IMAGE }}:latest
+
+      - name: 🚀 Push Frontend Image
+        run: |
+          docker push ${{ env.DOCKER_HUB_USERNAME }}/${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
+          docker push ${{ env.DOCKER_HUB_USERNAME }}/${{ env.FRONTEND_IMAGE }}:latest
+
+      - name: 🎉 Build Summary
+        run: |
+          echo "### 🎉 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Backend Image:** \`${{ env.DOCKER_HUB_USERNAME }}/${{ env.BACKEND_IMAGE }}:${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Frontend Image:** \`${{ env.DOCKER_HUB_USERNAME }}/${{ env.FRONTEND_IMAGE }}:${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🔗 **Docker Hub:** [View Images](https://hub.docker.com/u/${{ env.DOCKER_HUB_USERNAME }})" >> $GITHUB_STEP_SUMMARY
+
+  # ==========================================
+  # Stage 9: Notification (Optional)
+  # ==========================================
+  notify:
+    name: 📢 Notification
+    runs-on: ubuntu-latest
+    needs: [docker-push]
+    if: always()
+    
+    steps:
+      - name: 📢 Pipeline Status
+        run: |
+          if [ "${{ needs.docker-push.result }}" == "success" ]; then
+            echo "✅ CI/CD Pipeline completed successfully!"
+            echo "🚀 Images pushed to Docker Hub"
+          else
+            echo "❌ CI/CD Pipeline failed"
+          fi
