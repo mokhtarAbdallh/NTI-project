@@ -287,11 +287,16 @@ SPECTACULAR_SETTINGS = {
 }
 
 #------------------------------
-class DisableMigrations:
-    def __contains__(self, item):
-        return True
-    def __getitem__(self, item):
-        return None
+# class DisableMigrations:
+#     def __contains__(self, item):
+#         return item not in [
+#             'contenttypes',
+#             'auth',
+#             'admin',
+#             'sessions',
+#         ]
+#     def __getitem__(self, item):
+#         return None
 
-if DEBUG is False:  # أو شرط خاص بالـ CI
-    MIGRATION_MODULES = DisableMigrations()
+# if DEBUG is False:  # أو شرط خاص بالـ CI
+    # MIGRATION_MODULES = DisableMigrations()
