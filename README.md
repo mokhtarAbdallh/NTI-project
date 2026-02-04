@@ -145,3 +145,167 @@ make test
 make frontend-shell
 npm test
 ```
+
+# CI/CD Pipeline – Implementation Report
+
+## Overview
+This repository demonstrates the implementation of a **production-like CI/CD pipeline** using **GitHub Actions**, designed with a strong focus on **code quality**, **security**, and **best DevOps practices**.
+
+The pipeline integrates:
+- **SonarCloud** for static code analysis
+- **Trivy** for dependency and container image security scanning
+- **Docker** for building application images
+- **Docker Hub** for image publishing
+
+---
+
+## Pipeline Architecture
+
+The final and stable pipeline follows this execution flow:
+
+SonarCloud Analysis
+↓
+Trivy Filesystem Scan
+↓
+Docker Build → Trivy Image Scan → Docker Push
+
+
+This architecture was chosen to ensure:
+- Fast feedback
+- Minimal complexity
+- Deterministic and reproducible builds
+- Security validation before publishing images
+
+---
+
+## Challenges and Issues Encountered
+
+### 1. SonarCloud Configuration Errors
+
+**Problem:**
+The pipeline failed repeatedly with:
+sonar-scanner failed with exit code 3
+
+
+**Root Causes:**
+- Missing or incorrect `sonar.organization`
+- Mismatched `sonar.projectKey`
+- Confusion between SonarQube (self-hosted) and SonarCloud requirements
+- Incorrect `SONAR_HOST_URL`
+
+**Resolution:**
+- Created a proper SonarCloud Organization
+- Retrieved the exact **Organization Key** and **Project Key** from SonarCloud UI
+- Updated `sonar-project.properties` to match SonarCloud metadata exactly
+- Set `SONAR_HOST_URL` to `https://sonarcloud.io`
+
+**Lesson Learned:**
+SonarCloud is extremely strict. Any mismatch between configuration and platform metadata results in immediate failure.
+
+---
+
+### 2. Trivy Image Scan Failures
+
+**Problem:**
+Trivy failed with errors such as:
+unable to find the specified image
+UNAUTHORIZED: authentication required
+
+
+**Root Cause:**
+Docker images were built in one GitHub Actions job and scanned in another.
+GitHub Actions jobs run on **isolated runners**, so Docker images do not persist across jobs.
+
+**Resolution:**
+- Moved Docker build and Trivy image scan into the **same job**
+- Ensured the image exists locally at scan time
+
+**Lesson Learned:**
+Docker images are local state and must be scanned in the same job where they are built unless explicitly pushed or transferred.
+
+---
+
+### 3. Docker Push Failures
+
+**Problem:**
+An image does not exist locally with the tag
+
+
+**Root Cause:**
+The pipeline attempted to push Docker images in a job where they were never built or loaded.
+
+**Resolution:**
+- Adopted a single-job strategy:
+  - Build image
+  - Scan image with Trivy
+  - Push image (only on `main` branch)
+
+**Lesson Learned:**
+The most reliable CI pattern is:
+> **Build → Scan → Push in the same job**
+
+---
+
+### 4. Invalid Workflow Dependencies
+
+**Problem:**
+Job depends on unknown job
+
+
+**Root Cause:**
+A job was removed, but other jobs still referenced it using `needs`.
+
+**Resolution:**
+- Updated the workflow dependency graph
+- Ensured all `needs` references point to existing jobs
+
+**Lesson Learned:**
+When refactoring pipelines, the dependency graph (DAG) must remain consistent.
+
+---
+
+## Final Design Decision
+
+### Chosen Best Practice
+The final pipeline design prioritizes:
+- Simplicity
+- Speed
+- Security
+- Maintainability
+
+**Why this approach was selected:**
+- No Docker image rebuilds
+- No artifact complexity
+- Same image scanned and published
+- Widely adopted in real-world production environments
+
+---
+
+## Key Takeaways
+
+- CI/CD pipelines should be **stateless and deterministic**
+- Tool configuration must exactly match platform metadata
+- Security scans should happen **before publishing artifacts**
+- Simpler pipelines are easier to maintain and debug
+- GitHub Actions job isolation must always be considered in design
+
+---
+
+## Conclusion
+
+Despite multiple configuration and architectural challenges, the final CI/CD pipeline is:
+- Stable
+- Secure
+- Efficient
+- Production-ready
+
+The issues encountered during implementation provided valuable hands-on experience with real-world DevOps challenges, especially around CI isolation, security scanning, and pipeline design decisions.
+
+---
+
+## Future Improvements
+
+- Enforce SonarCloud Quality Gates on Pull Requests
+- Add coverage reporting
+- Integrate GitOps-based deployment (e.g., ArgoCD)
+- Extend pipeline to Kubernetes environments
