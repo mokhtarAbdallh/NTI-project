@@ -285,3 +285,13 @@ SPECTACULAR_SETTINGS = {
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
 }
+
+#------------------------------
+class DisableMigrations:
+    def __contains__(self, item):
+        return True
+    def __getitem__(self, item):
+        return None
+
+if DEBUG is False:  # أو شرط خاص بالـ CI
+    MIGRATION_MODULES = DisableMigrations()
