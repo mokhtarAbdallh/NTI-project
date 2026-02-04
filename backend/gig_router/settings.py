@@ -1,6 +1,8 @@
 import os
 from pathlib import Path
 from decouple import config
+import dj_database_url    #============================
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -80,16 +82,31 @@ TEMPLATES = [
 WSGI_APPLICATION = 'gig_router.wsgi.application'
 
 # Database
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': config('DB_NAME', default='gig_router'),
+#         'USER': config('DB_USER', default='postgres'),
+#         'PASSWORD': config('DB_PASSWORD', default='postgres'),
+#         'HOST': config('DB_HOST', default='db'),
+#         'PORT': config('DB_PORT', default='5432'),
+#     }
+# }
+#edited ============================
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': config('DB_NAME', default='gig_router'),
-        'USER': config('DB_USER', default='postgres'),
-        'PASSWORD': config('DB_PASSWORD', default='postgres'),
-        'HOST': config('DB_HOST', default='db'),
-        'PORT': config('DB_PORT', default='5432'),
-    }
+    'default': dj_database_url.config(
+        default=(
+            f"postgresql://"
+            f"{config('DB_USER', default='postgres')}:"
+            f"{config('DB_PASSWORD', default='postgres')}@"
+            f"{config('DB_HOST', default='db')}:"
+            f"{config('DB_PORT', default='5432')}/"
+            f"{config('DB_NAME', default='gig_router')}"
+        ),
+        conn_max_age=600,
+    )
 }
+
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [

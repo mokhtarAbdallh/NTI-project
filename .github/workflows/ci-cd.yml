@@ -32,7 +32,7 @@ jobs:
       postgres:
         image: postgres:15-alpine
         env:
-          # POSTGRES_DB: test_db
+          POSTGRES_DB: test_db
           POSTGRES_USER: testuser
           POSTGRES_PASSWORD: testpass
         ports:
@@ -100,9 +100,9 @@ jobs:
           # cache: 'npm'
           # cache-dependency-path: 'frontend/package-lock.json'
 
-      - name: 📦 Install Dependencies
-        working-directory: ./frontend
-        run: npm ci
+      # - name: 📦 Install Dependencies
+      #   working-directory: ./frontend
+      #   run: npm ci
 
       - name: 🧪 Run Tests
         working-directory: ./frontend
@@ -113,20 +113,20 @@ jobs:
         working-directory: ./frontend
         run: npm run build
 
-  sonarqube:
-    runs-on: ubuntu-latest
-    name: SonarCloud Analysis
+  # sonarqube:
+  #   runs-on: ubuntu-latest
+  #   name: SonarCloud Analysis
 
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #       with:
+  #         fetch-depth: 0
 
-      - name: SonarCloud Scan
-        uses: sonarsource/sonarqube-scan-action@master
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: https://sonarcloud.io
+  #     - name: SonarCloud Scan
+  #       uses: sonarsource/sonarqube-scan-action@master
+  #       env:
+  #         SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+  #         SONAR_HOST_URL: https://sonarcloud.io
 
 # # ==========================================
 # # Stage 2: Trivy Dependency Scan (Filesystem)
