@@ -56,11 +56,11 @@ jobs:
           severity: CRITICAL,HIGH
 
 # ==========================================
-# Stage 3: Build Docker Images
+# Stage 3: Build & Scan Docker Images
 # ==========================================
   docker-build:
     runs-on: ubuntu-latest
-    name: Build Docker Images
+    name: Build & Trivy Scan Images
     needs: trivy-fs
 
     steps:
@@ -68,30 +68,23 @@ jobs:
 
       - uses: docker/setup-buildx-action@v3
 
+      # ---- Backend ----
       - name: Build Backend Image
         run: |
           docker build -t $DOCKER_HUB_USERNAME/$BACKEND_IMAGE:${{ github.sha }} ./backend
 
-      - name: Build Frontend Image
-        run: |
-          docker build -t $DOCKER_HUB_USERNAME/$FRONTEND_IMAGE:${{ github.sha }} ./frontend
-
-# ==========================================
-# Stage 4: Trivy Image Scan
-# ==========================================
-  trivy-image:
-    runs-on: ubuntu-latest
-    name: Trivy Image Scan
-    needs: docker-build
-
-    steps:
-      - name: Trivy Backend Image
+      - name: Trivy Scan Backend Image
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ env.DOCKER_HUB_USERNAME }}/${{ env.BACKEND_IMAGE }}:${{ github.sha }}
           severity: CRITICAL,HIGH
 
-      - name: Trivy Frontend Image
+      # ---- Frontend ----
+      - name: Build Frontend Image
+        run: |
+          docker build -t $DOCKER_HUB_USERNAME/$FRONTEND_IMAGE:${{ github.sha }} ./frontend
+
+      - name: Trivy Scan Frontend Image
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ env.DOCKER_HUB_USERNAME }}/${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
