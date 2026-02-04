@@ -91,7 +91,7 @@ jobs:
           severity: CRITICAL,HIGH
 
 # ==========================================
-# Stage 5: Push to Docker Hub (main only)
+# Stage : Push to Docker Hub (main only)
 # ==========================================
   docker-push:
     runs-on: ubuntu-latest
