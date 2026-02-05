@@ -8,8 +8,6 @@ pipeline {
         BACKEND_IMAGE = "gig-router-backend"
         FRONTEND_IMAGE = "gig-router-frontend"
         IMAGE_TAG = "${env.GIT_COMMIT}"
-
-     
     }
 
     stages {
@@ -19,31 +17,19 @@ pipeline {
                 checkout scm
             }
         }
-        stage('SonarCloud Analysis') {
-        steps {
-            sh """
-            sonar-scanner \
-            -Dsonar.projectKey=gig-router-platform-ci \
-            -Dsonar.organization=gig-router-org \
-            -Dsonar.sources=. \
-            -Dsonar.host.url=https://sonarcloud.io \
-            -Dsonar.login=$SONAR_TOKEN
-            """
-        }
-}
 
-        // stage('SonarCloud Analysis') {
-        //     steps {
-        //         sh """
-        //         sonar-scanner \
-        //           -Dsonar.projectKey=YOUR_PROJECT_KEY \
-        //           -Dsonar.organization=YOUR_ORG \
-        //           -Dsonar.sources=. \
-        //           -Dsonar.host.url=https://sonarcloud.io \
-        //           -Dsonar.login=$SONAR_TOKEN
-        //         """
-        //     }
-        // }
+        stage('SonarCloud Analysis') {
+            steps {
+                sh """
+                sonar-scanner \
+                  -Dsonar.projectKey=gig-router-platform-ci \
+                  -Dsonar.organization=gig-router-org \
+                  -Dsonar.sources=. \
+                  -Dsonar.host.url=https://sonarcloud.io \
+                  -Dsonar.login=$SONAR_TOKEN
+                """
+            }
+        }
 
         stage('Trivy FS Scan') {
             steps {
@@ -54,15 +40,15 @@ pipeline {
         stage('Build Backend Image') {
             steps {
                 sh """
-                docker build -t $DOCKER_HUB_USERNAME/$BACKEND_IMAGE:$IMAGE_TAG ./backend
+                docker build -t ${DOCKER_HUB_CREDS_USR}/${BACKEND_IMAGE}:${IMAGE_TAG} ./backend
                 """
             }
         }
-IMAGE_TAG
+
         stage('Trivy Backend Image') {
             steps {
                 sh """
-                trivy image $DOCKER_HUB_USERNAME/$BACKEND_IMAGE:$IMAGE_TAG --severity CRITICAL,HIGH
+                trivy image ${DOCKER_HUB_CREDS_USR}/${BACKEND_IMAGE}:${IMAGE_TAG} --severity CRITICAL,HIGH
                 """
             }
         }
@@ -70,7 +56,7 @@ IMAGE_TAG
         stage('Build Frontend Image') {
             steps {
                 sh """
-                docker build -t $DOCKER_HUB_USERNAME/$FRONTEND_IMAGE:$IMAGE_TAG ./frontend
+                docker build -t ${DOCKER_HUB_CREDS_USR}/${FRONTEND_IMAGE}:${IMAGE_TAG} ./frontend
                 """
             }
         }
@@ -78,7 +64,7 @@ IMAGE_TAG
         stage('Trivy Frontend Image') {
             steps {
                 sh """
-                trivy image $DOCKER_HUB_USERNAME/$FRONTEND_IMAGE:$IMAGE_TAG --severity CRITICAL,HIGH
+                trivy image ${DOCKER_HUB_CREDS_USR}/${FRONTEND_IMAGE}:${IMAGE_TAG} --severity CRITICAL,HIGH
                 """
             }
         }
@@ -89,9 +75,9 @@ IMAGE_TAG
             }
             steps {
                 sh """
-                echo $DOCKER_HUB_PASSWORD | docker login -u $DOCKER_HUB_USERNAME --password-stdin
-                docker push $DOCKER_HUB_USERNAME/$BACKEND_IMAGE:$IMAGE_TAG
-                docker push $DOCKER_HUB_USERNAME/$FRONTEND_IMAGE:$IMAGE_TAG
+                echo $DOCKER_HUB_CREDS_PSW | docker login -u $DOCKER_HUB_CREDS_USR --password-stdin
+                docker push ${DOCKER_HUB_CREDS_USR}/${BACKEND_IMAGE}:${IMAGE_TAG}
+                docker push ${DOCKER_HUB_CREDS_USR}/${FRONTEND_IMAGE}:${IMAGE_TAG}
                 """
             }
         }
