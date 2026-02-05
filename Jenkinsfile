@@ -2,14 +2,14 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_HUB_USERNAME = credentials('docker-hub').username
-        DOCKER_HUB_PASSWORD = credentials('docker-hub').password
+        DOCKER_HUB_CREDS = credentials('docker-hub')
+        SONAR_TOKEN = credentials('sonar-token')
 
         BACKEND_IMAGE = "gig-router-backend"
         FRONTEND_IMAGE = "gig-router-frontend"
         IMAGE_TAG = "${env.GIT_COMMIT}"
 
-        SONAR_TOKEN = credentials('sonar-token')
+     
     }
 
     stages {
