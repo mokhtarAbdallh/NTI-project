@@ -2,7 +2,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: nti-project
+  name: backend-app
   namespace: argocd
 spec:
   project: default
@@ -10,11 +10,11 @@ spec:
   source:
     repoURL: https://github.com/mokhtarAbdallh/NTI-project
     targetRevision: master
-    path: k8s
+    path: k8s/backend   # 👈 backend فقط
 
   destination:
     server: https://kubernetes.default.svc
-    namespace: productionhttps
+    namespace: micro-prod
 
   syncPolicy:
     automated:

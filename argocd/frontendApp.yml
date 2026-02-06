@@ -8,12 +8,12 @@ spec:
 
   source:
     repoURL: https://github.com/mokhtarAbdallh/NTI-project
-    targetRevision: main
+    targetRevision: master
     path: k8s/frontend   # 👈 frontend فقط
 
   destination:
     server: https://kubernetes.default.svc
-    namespace: production
+    namespace: micro-prod
 
   syncPolicy:
     automated:
