@@ -3,6 +3,8 @@ name: CI/CD Pipeline (Simplified)
 on:
   push:
     branches: [ master ]
+    tags:
+      - 'v*'
   pull_request:
     branches: [ master ]
 
@@ -113,12 +115,14 @@ jobs:
   #       working-directory: ./frontend
   #       run: npm run build
 
-  sonarqube:
+
+  sonarcloud:
     runs-on: ubuntu-latest
     name: SonarCloud Analysis
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -128,16 +132,17 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: https://sonarcloud.io
 
-# ==========================================
+# ==================================================
 # Stage 2: Trivy Dependency Scan (Filesystem)
-# ==========================================
+# ==================================================
   trivy-fs:
     runs-on: ubuntu-latest
-    name: Trivy Dependency Scan
-    needs: sonarqube
+    name: Trivy FS Scan
+    needs: sonarcloud
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Trivy FS Scan
         uses: aquasecurity/trivy-action@master
@@ -146,23 +151,53 @@ jobs:
           scan-ref: .
           severity: CRITICAL,HIGH
 
-# ==========================================
+# ==================================================
 # Stage 3: Build, Scan & Push Docker Images
-# ==========================================
+# ==================================================
   docker:
     runs-on: ubuntu-latest
     name: Build, Scan & Push Images
     needs: trivy-fs
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - uses: docker/setup-buildx-action@v3
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      # ---------- Backend ----------
+      # ----------------------------------------------
+      # Extract Version from Git Tag (if exists)
+      # ----------------------------------------------
+      - name: Extract version from Git tag
+        id: version
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=" >> $GITHUB_OUTPUT
+          fi
+
+      # ----------------------------------------------
+      # Login to Docker Hub (master or tag only)
+      # ----------------------------------------------
+      - name: Login to Docker Hub
+        if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/')
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+
+      # ----------------------------------------------
+      # Build Backend Image (SHA + optional version)
+      # ----------------------------------------------
       - name: Build Backend Image
         run: |
-          docker build -t $DOCKER_HUB_USERNAME/$BACKEND_IMAGE:${{ github.sha }} ./backend
+          set -e
+          docker build \
+            -t $DOCKER_HUB_USERNAME/$BACKEND_IMAGE:${{ github.sha }} \
+            ${{ steps.version.outputs.VERSION && format('-t {0}/{1}:{2}', env.DOCKER_HUB_USERNAME, env.BACKEND_IMAGE, steps.version.outputs.VERSION) || '' }} \
+            ./backend
 
       - name: Trivy Scan Backend Image
         uses: aquasecurity/trivy-action@master
@@ -170,10 +205,16 @@ jobs:
           image-ref: ${{ env.DOCKER_HUB_USERNAME }}/${{ env.BACKEND_IMAGE }}:${{ github.sha }}
           severity: CRITICAL,HIGH
 
-      # ---------- Frontend ----------
+      # ----------------------------------------------
+      # Build Frontend Image (SHA + optional version)
+      # ----------------------------------------------
       - name: Build Frontend Image
         run: |
-          docker build -t $DOCKER_HUB_USERNAME/$FRONTEND_IMAGE:${{ github.sha }} ./frontend
+          set -e
+          docker build \
+            -t $DOCKER_HUB_USERNAME/$FRONTEND_IMAGE:${{ github.sha }} \
+            ${{ steps.version.outputs.VERSION && format('-t {0}/{1}:{2}', env.DOCKER_HUB_USERNAME, env.FRONTEND_IMAGE, steps.version.outputs.VERSION) || '' }} \
+            ./frontend
 
       - name: Trivy Scan Frontend Image
         uses: aquasecurity/trivy-action@master
@@ -181,16 +222,11 @@ jobs:
           image-ref: ${{ env.DOCKER_HUB_USERNAME }}/${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
           severity: CRITICAL,HIGH
 
-      # ---------- Push (main only) ----------
-      - name: Login to Docker Hub
-        if: github.ref == 'refs/heads/master'
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_HUB_USERNAME }}
-          password: ${{ secrets.DOCKER_HUB_TOKEN }}
-
+      # ----------------------------------------------
+      # Push All Tags (single image digest)
+      # ----------------------------------------------
       - name: Push Images
-        if: github.ref == 'refs/heads/master'
+        if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/')
         run: |
-          docker push $DOCKER_HUB_USERNAME/$BACKEND_IMAGE:${{ github.sha }}
-          docker push $DOCKER_HUB_USERNAME/$FRONTEND_IMAGE:${{ github.sha }}
+          docker push --all-tags $DOCKER_HUB_USERNAME/$BACKEND_IMAGE
+          docker push --all-tags $DOCKER_HUB_USERNAME/$FRONTEND_IMAGE
