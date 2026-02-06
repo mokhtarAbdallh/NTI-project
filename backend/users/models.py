@@ -39,7 +39,7 @@ class User(AbstractUser):
     verification_date = models.DateTimeField(null=True, blank=True)
     
     # Preferences
-    user_notification_preferences = models.JSONField(default=dict, blank=True, null=True)
+    notification_preferences = models.JSONField(default=dict, blank=True, null=True)
     
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)

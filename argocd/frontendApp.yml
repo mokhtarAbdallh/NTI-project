@@ -7,7 +7,7 @@ spec:
   project: default
 
   source:
-    repoURL: https://github.com/<ORG>/<REPO>.git
+    repoURL: https://github.com/mokhtarAbdallh/NTI-project
     targetRevision: main
     path: k8s/frontend   # 👈 frontend فقط
 
