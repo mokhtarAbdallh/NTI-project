@@ -15,7 +15,7 @@ spec:
     server: https://kubernetes.default.svc
     namespace: micro-prod
 
-  syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
+    syncPolicy:
+  #   automated:
+  #     prune: true
+  #     selfHeal: true
