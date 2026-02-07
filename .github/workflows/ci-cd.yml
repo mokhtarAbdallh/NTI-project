@@ -239,13 +239,13 @@ jobs:
         run: |
           TAG=${{ github.sha }}
 
-          echo "Updating backend image..."
-          sed -i "s|mokhtar/backend:.*|mokhtar/backend:${TAG}|g" backend/backend.yaml
+          echo "Updating backend manifest..."
+          sed -i "s|mdmokhtar/gig-router-backend:.*|mdmokhtar/gig-router-backend:${TAG}|g" k8s/backend.yaml
 
-          echo "Updating frontend image..."
-          sed -i "s|mokhtar/frontend:.*|mokhtar/frontend:${TAG}|g" frontend/frontend.yaml
-
+          echo "Updating frontend manifest..."
+          sed -i "s|mdmokhtar/gig-router-frontend:.*|mdmokhtar/gig-router-frontend:${TAG}|g" k8s/frontend.yaml
           echo "Manifests updated with tag: ${TAG}"
+
 
       - name: Commit & push manifests
         if: github.ref == 'refs/heads/master'
@@ -253,6 +253,6 @@ jobs:
           git config user.name "github-actions"
           git config user.email "actions@github.com"
 
-          git add backend/backend.yaml frontend/frontend.yaml
-          git commit -m "ci: update k8s images to ${{ github.sha }}" || echo "No changes"
+          git add k8s/backend.yaml k8s/frontend.yaml
+          git commit -m "ci: update k8s image tags to ${{ github.sha }}" || echo "No changes to commit"
           git push
