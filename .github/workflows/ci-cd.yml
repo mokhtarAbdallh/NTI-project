@@ -3,13 +3,14 @@ name: CI/CD Pipeline (Simplified)
 on:
   push:
     branches: [ master ]
-    tags:
-      - 'v*'
+    paths-ignore:
+      - "backend/**"
+      - "frontend/**"
   pull_request:
     branches: [ master ]
 
 permissions:
-  contents: read
+  contents: write
   packages: read
   security-events: write
 
@@ -230,3 +231,28 @@ jobs:
         run: |
           docker push --all-tags $DOCKER_HUB_USERNAME/$BACKEND_IMAGE
           docker push --all-tags $DOCKER_HUB_USERNAME/$FRONTEND_IMAGE
+
+
+# ==================================================
+      - name: Update k8s manifests image tag
+        if: github.ref == 'refs/heads/master'
+        run: |
+          TAG=${{ github.sha }}
+
+          echo "Updating backend image..."
+          sed -i "s|mokhtar/backend:.*|mokhtar/backend:${TAG}|g" backend/backend.yaml
+
+          echo "Updating frontend image..."
+          sed -i "s|mokhtar/frontend:.*|mokhtar/frontend:${TAG}|g" frontend/frontend.yaml
+
+          echo "Manifests updated with tag: ${TAG}"
+
+      - name: Commit & push manifests
+        if: github.ref == 'refs/heads/master'
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+
+          git add backend/backend.yaml frontend/frontend.yaml
+          git commit -m "ci: update k8s images to ${{ github.sha }}" || echo "No changes"
+          git push
