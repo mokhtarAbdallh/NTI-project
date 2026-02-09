@@ -23,7 +23,8 @@ env:
 # Stage 1: SonarCloud Code Analysis
 # ==========================================
 jobs:
-  Checkout back & front:
+  checkout_back_front:
+    name: Checkout back & front
     runs-on: ubuntu-latest
 
     steps:
