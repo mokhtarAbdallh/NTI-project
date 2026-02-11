@@ -4,11 +4,11 @@ metadata:
   name: micro-ingress
   namespace: micro-prod
 spec:
+  ingressClassName: nginx   # 👈 أضف هذا السطر هنا
   rules:
-    - host: myapp.local
-      http:
+    # - host: myapp.local
+    - http:
         paths:
-
           - path: /
             pathType: Prefix
             backend:
@@ -24,4 +24,3 @@ spec:
                 name: backend
                 port:
                   number: 8000
-

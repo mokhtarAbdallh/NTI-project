@@ -2,7 +2,7 @@ FROM jenkins/jenkins:lts
 
 USER root
 
-# تحديث النظام وتثبيت الأدوات الأساسية
+
 RUN apt-get update && apt-get install -y \
     curl \
     unzip \

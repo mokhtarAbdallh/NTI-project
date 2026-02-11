@@ -1,0 +1,44 @@
+argocd:
+  enabled: true
+  configs:
+    cm:
+      admin.enabled: false
+      url: "https://REPLACE_ME.argocd.example.com"
+      oidc.config: |
+        name: SSO
+        issuer: https://auth.nicklasfrahm.dev
+        clientID: argocd
+        enablePKCEAuthentication: true
+        requestedScopes:
+        - openid
+        - profile
+        - email
+        - groups
+        requestedIDTokenClaims:
+          groups:
+            essential: true
+    rbac:
+      scopes: "[groups, email]"
+      policy.default: ""
+      policy.custom.csv: |
+        p, role:platform, applicationsets, *, */*, allow
+        p, role:platform, applications, *, */*, allow
+        p, role:platform, clusters, get, *, allow
+        p, role:platform, repositories, get, *, allow
+
+        g, nicklasfrahm-dev:platform, role:platform
+    params:
+      server.insecure: true
+  redis:
+    enabled: true
+  dex:
+    enabled: false
+  notifications:
+    enabled: false
+
+httpRoute:
+  enabled: true
+  gateway:
+    namespace: platform
+    name: shared-http
+  hostname: "REPLACE_ME.argocd.example.com"
