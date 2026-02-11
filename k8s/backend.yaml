@@ -16,7 +16,7 @@ spec:
       containers:
         - name: backend
           # image: 695094375859.dkr.ecr.us-east-1.amazonaws.com/image-backend:3.0
-          image: mdmokhtar/gig-router-backend:IMAGE_TAG
+          image: mdmokhtar/gig-router-backend:cb264c7c941b58b40d49decddbc08b3455615265
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000

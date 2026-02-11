@@ -16,7 +16,7 @@ spec:
       containers:
         - name: frontend
           # image: ahmed3013/front_image:3.0
-          image: mdmokhtar/gig-router-frontend:IMAGE_TAG
+          image: mdmokhtar/gig-router-frontend:cb264c7c941b58b40d49decddbc08b3455615265
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 80
