@@ -43,14 +43,14 @@ module "nodegroup" {
   subnets = module.subnets.private_subnets
 }
 
-module "rds" {
-  source = "../../modules/rds"
-  db_name = "microdb"
-  db_user = "microadmin"
-  db_password = "StrongPassword123!"
- subnets = module.subnets.private_subnets
-vpc_id  = module.vpc.vpc_id
-}
+# module "rds" {
+#   source = "../../modules/rds"
+#   db_name = "microdb"
+#   db_user = "microadmin"
+#   db_password = "StrongPassword123!"
+#  subnets = module.subnets.private_subnets
+# vpc_id  = module.vpc.vpc_id
+# }
 module "secrets" {
   source = "../../modules/secrets"
 
